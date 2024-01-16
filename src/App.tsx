@@ -1,129 +1,54 @@
-import { useReducer, Dispatch } from 'react'
-import './App.css'
-import { IAction, appReducer } from './reducer'
-import { Results } from './Results'
-import { fibonacciFormula, ordinal_suffix } from './helpers'
+import { useState } from "react";
+import "./App.css";
+import { Results } from "./Results";
 
-const Form = ({
-    onSubmit,
-    dispatch,
-    value,
-    title,
-}: {
-    onSubmit: () => void
-    dispatch: Dispatch<IAction>
-    value: string
-    title: string
-}) => {
-    return (
-        <form
-            onSubmit={(e) => {
-                console.log('submit')
-                e.preventDefault()
-                onSubmit()
-            }}
-        >
-            <h2>{title}</h2>
-            <input
-                type="text"
-                name="fibNumber"
-                onChange={(e) => {
-                    dispatch({
-                        type: 'SET_NUMBER',
-                        payload: e.currentTarget.value,
-                    })
-                }}
-                value={value}
-            />
-            <button type="submit">Submit</button>
-        </form>
-    )
-}
-
+let worker: Worker | null = null;
 function App() {
-    const [info, dispatch] = useReducer(appReducer, {
-        number: '',
-        computedFibNumbers: [],
-    })
+  const [numbers, setNumbers] = useState<{ time: number; value: number }[]>([]);
+  const [inProgress, setInProgress] = useState(false);
 
-    const runWorker = (num: number, id: number) => {
-        const worker = new Worker(new URL('./fibWorker.ts', import.meta.url))
-        dispatch({ type: 'SET_ERROR', payload: '' })
+  const onWorkerMessage = (
+    e: MessageEvent<{ time: number; value: number }>
+  ) => {
+    const { time, value } = e.data;
+    setNumbers((prev) => {
+      return [...prev, { time, value }];
+    });
+  };
 
-        worker.onerror = (err: any) => err
-        worker.onmessage = (
-            e: MessageEvent<{ time: number; value: number }>
-        ) => {
-            const { time, value } = e.data
-            dispatch({
-                type: 'UPDATE_FIBO_NUMBER',
-                payload: { time, value, id, loading: false },
-            })
+  const runWorker = () => {
+    setNumbers([]);
+    worker = new Worker(new URL("./fibWorker.ts", import.meta.url));
+    worker.onmessage = onWorkerMessage;
+    worker.onerror = (err: any) => err;
+    worker.postMessage({ start: true });
+  };
 
-            worker.terminate()
-        }
+  const onSubmit = () => {
+    setInProgress(true);
+    runWorker();
+  };
 
-        worker.postMessage(num)
-    }
+  const onStop = () => {
+    setInProgress(false);
+    worker?.terminate();
+    worker = null;
+  };
 
-    const onSubmit = () => {
-        if (info.number) {
-            const id = info.computedFibNumbers.length
-            dispatch({
-                type: 'SET_FIBO_NUMBER',
-                payload: {
-                    id,
-                    loading: true,
-                    nth: ordinal_suffix(Number(info.number)),
-                },
-            })
-            console.log('external submut')
-            runWorker(+info.number, id)
-        }
-    }
+  return (
+    <main className="main">
+      <div className="forms-wrapper">
+        <div>
+          <h2>Worker fib</h2>
+          <p>Start calculating fibonacci numbers</p>
+          {!inProgress && <button onClick={onSubmit}>Submit</button>}
+          {inProgress && <button onClick={onStop}>Stop</button>}
+        </div>
+      </div>
 
-    const onSubmitSync = () => {
-        if (info.number) {
-            const id = info.computedFibNumbers.length
-            dispatch({
-                type: 'SET_FIBO_NUMBER',
-                payload: {
-                    id,
-                    loading: true,
-                    nth: ordinal_suffix(Number(info.number)),
-                },
-            })
-            const start = new Date().getTime()
-            const result = fibonacciFormula(+info.number)
-            const time = Date.now() - start
-            dispatch({
-                type: 'UPDATE_FIBO_NUMBER',
-                payload: { time, value: result, id, loading: false },
-            })
-        }
-    }
-
-    return (
-        <main className="main">
-            <div className="forms-wrapper">
-                <Form
-                    title="Worker form"
-                    onSubmit={onSubmit}
-                    dispatch={dispatch}
-                    value={info.number}
-                />
-
-                <Form
-                    title="Worker form (sync)"
-                    onSubmit={onSubmitSync}
-                    dispatch={dispatch}
-                    value={info.number}
-                />
-            </div>
-
-            <Results computedFibs={info.computedFibNumbers} />
-        </main>
-    )
+      <Results computedFibs={numbers} />
+    </main>
+  );
 }
 
-export default App
+export default App;

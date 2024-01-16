@@ -18,7 +18,7 @@ code {
 
 .main {
     background-color: cornflowerblue;
-    height: 100vh;
+    min-height: 100vh;
 }
 
 h2 {
@@ -45,11 +45,13 @@ input {
 .result-wrapper {
     padding: 30px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     place-items: center;
     gap: 20px;
 }
 .result-item {
+    width: 50%;
     background-color: cyan;
     color: midnightblue;
     border-radius: 30px;
